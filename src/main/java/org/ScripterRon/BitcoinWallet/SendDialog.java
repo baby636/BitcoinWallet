@@ -33,6 +33,8 @@ import java.util.List;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import org.satochip.satochipclient.CardConnector;
+import static org.ScripterRon.BitcoinWallet.Main.log;
 
 /**
  * SendDialog will create a new transaction to send coins to a specified recipient.  Transactions in the safe and
@@ -246,6 +248,7 @@ public class SendDialog extends JDialog implements ActionListener {
         //
         // Build the new transaction
         //
+        String debug="debugdata:";
         Transaction tx = null;
         while (true) {
             BigInteger totalAmount = sendAmount.add(sendFee);
@@ -253,9 +256,17 @@ public class SendDialog extends JDialog implements ActionListener {
             for (SignedInput input : inputList) {
                 inputs.add(input);
                 totalAmount = totalAmount.subtract(input.getValue());
+                debug+="\n input nbr:"+inputs.size()
+                        +"\n input key:"+CardConnector.toString(input.getKey().getPubKey())
+                        +"\n input amount:"+input.getValue().toString()
+                        +"\n script:"+CardConnector.toString(input.getScriptBytes())
+                        +"\n outpoint txhash:"+CardConnector.toString(input.getOutPoint().getHash().getBytes())
+                        +"\n outpoint index:"+input.getOutPoint().getIndex()
+                        +"\n outpoint rawbytes:"+CardConnector.toString(input.getOutPoint().getBytes());
                 if (totalAmount.signum() <= 0)
                     break;
             }
+            
             if (totalAmount.signum() > 0) {
                 JOptionPane.showMessageDialog(this, "There are not enough confirmed coins available",
                                               "Error", JOptionPane.ERROR_MESSAGE);
@@ -266,6 +277,9 @@ public class SendDialog extends JDialog implements ActionListener {
             BigInteger change = totalAmount.negate();
             if (change.compareTo(Parameters.DUST_TRANSACTION) > 0)
                 outputs.add(new TransactionOutput(1, change, Parameters.changeKey.toAddress()));
+            debug+="\n output(0):"+CardConnector.toString(outputs.get(0).getBytes())
+                +"\n output amount:"+outputs.get(0).getValue().toString();
+            
             //
             // Create the new transaction using the supplied inputs and outputs
             //
@@ -274,6 +288,9 @@ public class SendDialog extends JDialog implements ActionListener {
             } catch (ECException | ScriptException | VerificationException exc) {
                 throw new WalletException("Unable to create transaction", exc);
             }
+            log.info("Transaction created:\n rawtx:"+CardConnector.toString(tx.getBytes())
+                            +"\n hash:"+tx.getHash().toString()
+                            +"\n string"+tx.toString()+debug);
             //
             // The minimum fee increases for every 1000 bytes of serialized transaction data.  We
             // will need to increase the send fee if it doesn't cover the minimum fee.

@@ -15,18 +15,24 @@
  */
 package org.ScripterRon.BitcoinWallet;
 
+import java.awt.*;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.*;
+import java.util.List;
+import javax.swing.*;
+import javax.swing.table.*;
+import org.satochip.satochipclient.CardConnector;
+import org.satochip.satochipclient.CardConnectorException;
 import org.ScripterRon.BitcoinCore.Address;
+import org.ScripterRon.BitcoinCore.ECException;
 import org.ScripterRon.BitcoinCore.ECKey;
+import org.ScripterRon.BitcoinCore.ECKeyHw;
 import org.ScripterRon.BitcoinCore.FilterLoadMessage;
 import org.ScripterRon.BitcoinCore.Message;
 
-import javax.swing.*;
-import javax.swing.table.*;
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
-import java.awt.Toolkit;
+import static org.ScripterRon.BitcoinWallet.Main.log;
 
 /**
  * ReceiveAddressDialog displays a table containing labels and associated receive addresses.
@@ -142,8 +148,11 @@ public class ReceiveAddressDialog extends JDialog implements ActionListener {
                 setVisible(false);
                 dispose();
             } else if (action.equals("new")) {
-                ECKey key = new ECKey();
+                List<Integer> list= WalletSqlHw.incrementCurrentPath();
+                ECKey key= new ECKeyHw(list);
                 editKey(key, -1);
+                log.info("Created new key with pubkey:"+CardConnector.toString(key.getPubKey()));
+                log.info("List size:"+list.size()+" list[0]:"+ list.get(0)+" "+Integer.toHexString(list.get(0)));
             } else {
                 int row = table.getSelectedRow();
                 if (row < 0) {
@@ -166,6 +175,12 @@ public class ReceiveAddressDialog extends JDialog implements ActionListener {
             }
         } catch (WalletException exc) {
             Main.logException("Unable to update wallet database", exc);
+        } catch(CardConnectorException ex){
+            log.error("CardConnectorException: "+ex.getMessage()+" "+Integer.toHexString(ex.getIns() & 0xff)+" "+Integer.toHexString(ex.getSW12() & 0xffff));
+            JOptionPane.showMessageDialog(this, "CardConnectorException: "+ex.getMessage()+" "+Integer.toHexString(ex.getIns() & 0xff)+" "+Integer.toHexString(ex.getSW12() & 0xffff), "Error", JOptionPane.ERROR_MESSAGE);
+        }catch(ECException ex){
+            log.error("ECException: "+ex.getMessage());
+            JOptionPane.showMessageDialog(this, "ECException: "+ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception exc) {
             Main.logException("Exception while processing action event", exc);
         }

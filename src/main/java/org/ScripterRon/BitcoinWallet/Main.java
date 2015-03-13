@@ -15,18 +15,19 @@
  */
 package org.ScripterRon.BitcoinWallet;
 
-import org.ScripterRon.BitcoinCore.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.ScripterRon.BitcoinCore.ECKey;
+import org.ScripterRon.BitcoinCore.ECException;
+import org.ScripterRon.BitcoinCore.BloomFilter;
+import org.ScripterRon.BitcoinCore.ECKeyHw;
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.PeerAddress;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -37,6 +38,11 @@ import java.util.List;
 import java.util.Properties;
 import java.util.logging.LogManager;
 import javax.swing.*;
+import org.satochip.satochipclient.CardConnector;
+import org.satochip.satochipclient.CardConnectorException;
+import org.satochip.satochipclient.JCconstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * <p>BitcoinWallet is a wallet used for sending and receiving Bitcoins.  It supports labels
@@ -243,15 +249,45 @@ public class Main {
             //
             // Get the wallet passphrase if it is not specified in the application properties
             //
-            if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0) {
-                Parameters.passPhrase = JOptionPane.showInputDialog("Enter the wallet passphrase");
-                if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0)
-                    System.exit(0);
-            }
+//            if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0) {
+//                Parameters.passPhrase = JOptionPane.showInputDialog("Enter the wallet passphrase");
+//                if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0)
+//                    System.exit(0);
+//            }
             //
             // Create the wallet
             //
-            Parameters.wallet = new WalletSql(dataPath);
+            Parameters.wallet = new WalletSqlHw(dataPath);
+            log.info("HwWallet object created");
+            //
+            // Connect the dongle and setup the Hardware wallet
+            //
+            if(!((WalletSqlHw)Parameters.wallet).hwWalletSetupDone()){
+                log.info("HwWallet not initialized");
+                String strpin = JOptionPane.showInputDialog("Setup - Enter the PIN code");
+                String strublk = JOptionPane.showInputDialog("Setup - Enter the PUK code");
+                if (strpin == null || strpin.length() == 0 || strublk == null || strublk.length() == 0)
+                    System.exit(0);
+                ((WalletSqlHw)Parameters.wallet).hwWalletSetup(strpin, strublk);
+                log.info("HwWallet initialized!");
+            }
+            String strpin = JOptionPane.showInputDialog("Login - Enter the PIN code");
+            if (strpin == null || strpin.length() == 0)
+                System.exit(0);
+            ((WalletSqlHw)Parameters.wallet).hwWalletVerifyPIN((byte)0x00, strpin);
+            log.info("HwWallet verify PIN");
+            //
+            // recover authentikey and set the BIP32 seeed if necessary
+            //
+            if (!((WalletSqlHw)Parameters.wallet).hwWalletIsSeeded()){
+                log.info("HwWallet seed not initialized");
+                String strseed= JOptionPane.showInputDialog("Enter the BIP32 seed");
+                if (strseed == null || strseed.length() == 0)
+                    System.exit(0);
+                ((WalletSqlHw)Parameters.wallet).hwWalletImportSeed(strseed);
+                log.info("HwWallet seed initialized!");
+            }
+            log.info("HwWallet is seeded");
             //
             // Get the address and key lists
             //
@@ -263,11 +299,15 @@ public class Main {
             for (ECKey key : Parameters.keys) {
                 if (key.isChange()) {
                     Parameters.changeKey = key;
+                    log.info("HwWallet recover change pubkey from db:"+key.getLabel()
+                            +" pubkey:"+CardConnector.toString(key.getPubKey())
+                            +" keypath:"+CardConnector.toString(((ECKeyHw)key).getKeypath()));
                     break;
                 }
             }
             if (Parameters.changeKey == null) {
-                ECKey changeKey = new ECKey();
+                log.info("HwWallet create changeKey");
+                ECKey changeKey = new ECKeyHw(WalletSqlHw.changePath);
                 changeKey.setLabel("<Change>");
                 changeKey.setChange(true);
                 Parameters.wallet.storeKey(changeKey);
@@ -319,6 +359,12 @@ public class Main {
             log.error("The wallet passphrase is not correct", exc);
             JOptionPane.showMessageDialog(null, "The wallet passphrase is not correct",
                                           "Error", JOptionPane.ERROR_MESSAGE);
+            shutdown();
+        } catch (CardConnectorException ex) {
+            log.error("CardConnectorException: "+ex.getMessage()+" "+Integer.toHexString(ex.getIns() & 0xff)+" "+Integer.toHexString(ex.getSW12() & 0xffff));
+            shutdown();
+        }catch (ECException ex) {
+            log.error("ECException: "+ex.getMessage(),ex);
             shutdown();
         } catch (Exception exc) {
             logException("Exception while starting wallet services", exc);

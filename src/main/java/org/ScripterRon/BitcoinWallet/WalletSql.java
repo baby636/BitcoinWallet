@@ -27,7 +27,6 @@ import org.ScripterRon.BitcoinCore.Sha256Hash;
 import org.ScripterRon.BitcoinCore.VerificationException;
 
 import java.io.EOFException;
-import java.io.File;
 import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -50,14 +49,14 @@ import java.util.Map;
  * as the private keys have been exported and then imported into the new wallet.</p>
  */
 public class WalletSql extends Wallet {
-
+    
     /** Settings table definition */
-    private static final String Settings_Table = "CREATE TABLE IF NOT EXISTS Settings ("
+    protected static final String Settings_Table = "CREATE TABLE IF NOT EXISTS Settings ("
             + "schema_name              VARCHAR(32) NOT NULL,"      // Database schema name
             + "schema_version           SMALLINT NOT NULL)";        // Database schema version
-
+    
     /** Headers table definitions */
-    private static final String Headers_Table = "CREATE TABLE IF NOT EXISTS Headers ("
+    protected static final String Headers_Table = "CREATE TABLE IF NOT EXISTS Headers ("
             + "db_id                    IDENTITY,"                  // Row identity
             + "block_hash_index         BIGINT NOT NULL,"           // Block hash index
             + "block_hash               BINARY NOT NULL,"           // Block hash
@@ -70,12 +69,12 @@ public class WalletSql extends Wallet {
             + "block_height             INTEGER NOT NULL,"          // Block height or -1
             + "chain_work               BINARY NOT NULL,"           // Chain work
             + "matches                  BINARY)";                   // Transactin matches or null
-    private static final String Headers_IX1 = "CREATE INDEX IF NOT EXISTS Headers_IX1 ON Headers(block_hash_index)";
-    private static final String Headers_IX2 = "CREATE INDEX IF NOT EXISTS Headers_IX2 ON Headers(prev_hash_index)";
-    private static final String Headers_IX3 = "CREATE INDEX IF NOT EXISTS Headers_IX3 ON Headers(block_height)";
-
+    protected static final String Headers_IX1 = "CREATE INDEX IF NOT EXISTS Headers_IX1 ON Headers(block_hash_index)";
+    protected static final String Headers_IX2 = "CREATE INDEX IF NOT EXISTS Headers_IX2 ON Headers(prev_hash_index)";
+    protected static final String Headers_IX3 = "CREATE INDEX IF NOT EXISTS Headers_IX3 ON Headers(block_height)";
+    
     /** Received table definitions */
-    private static final String Received_Table = "CREATE TABLE IF NOT EXISTS Received ("
+    protected static final String Received_Table = "CREATE TABLE IF NOT EXISTS Received ("
             + "db_id                    IDENTITY,"                  // Row identity
             + "tx_hash_index            BIGINT NOT NULL,"           // Transaction hash index
             + "tx_hash                  BINARY NOT NULL,"           // Transaction hash
@@ -91,11 +90,11 @@ public class WalletSql extends Wallet {
             + "in_safe                  BOOLEAN NOT NULL,"          // Transaction output is in the safe
             + "is_coinbase              BOOLEAN NOT NULL,"          // Transaction is coinbase transaction
             + "is_deleted               BOOLEAN NOT NULL)";         // Transaction output is deleted
-
-    private static final String Received_IX1 = "CREATE INDEX IF NOT EXISTS Received_IX1 ON Received(tx_hash_index)";
-
+            
+    protected static final String Received_IX1 = "CREATE INDEX IF NOT EXISTS Received_IX1 ON Received(tx_hash_index)";
+    
     /** Sent table definitions */
-    private static final String Sent_Table = "CREATE TABLE IF NOT EXISTS Sent ("
+    protected static final String Sent_Table = "CREATE TABLE IF NOT EXISTS Sent ("
             + "db_id                    IDENTITY,"                  // Row identity
             + "tx_hash_index            BIGINT NOT NULL,"           // Transaction hash index
             + "tx_hash                  BINARY NOT NULL,"           // Transaction hash
@@ -107,14 +106,14 @@ public class WalletSql extends Wallet {
             + "fee                      BIGINT NOT NULL,"           // Transaction fee
             + "is_deleted               BOOLEAN NOT NULL,"          // Transaction is deleted
             + "tx_data                  BINARY NOT NULL)";          // Transaction data
-    private static final String Sent_IX1 = "CREATE UNIQUE INDEX IF NOT EXISTS Sent_IX1 ON Sent(tx_hash_index)";
-
+    protected static final String Sent_IX1 = "CREATE UNIQUE INDEX IF NOT EXISTS Sent_IX1 ON Sent(tx_hash_index)";
+    
     /** Addresses table definitions */
-    private static final String Addresses_Table = "CREATE TABLE IF NOT EXISTS Addresses ("
+    protected static final String Addresses_Table = "CREATE TABLE IF NOT EXISTS Addresses ("
             + "db_id                    IDENTITY,"                  // Row identity
             + "address                  BINARY NOT NULL,"           // Bitcoin address
             + "label                    VARCHAR)";                  // Associated label or null
-
+    
     /** Keys table definitions */
     private static final String Keys_Table = "CREATE TABLE IF NOT EXISTS Keys ("
             + "db_id                    IDENTITY,"                  // Row identity
@@ -147,9 +146,6 @@ public class WalletSql extends Wallet {
      */
     public WalletSql(String dataPath) throws WalletException {
         super(dataPath);
-        File databaseDir = new File(String.format("%s%sDatabase", dataPath, Main.fileSeparator));
-        if (!databaseDir.exists())
-            databaseDir.mkdirs();
         long maxMemory = Runtime.getRuntime().maxMemory()/(1024*1024);
         long dbCacheSize;
         if (maxMemory < 256)
@@ -206,7 +202,7 @@ public class WalletSql extends Wallet {
      * @return                              Connection for the current thread
      * @throws      WalletException         Unable to obtain a database connection
      */
-    private Connection getConnection() throws WalletException {
+    protected Connection getConnection() throws WalletException {
         Connection conn;
         synchronized (lock) {
             try {
@@ -242,24 +238,24 @@ public class WalletSql extends Wallet {
             log.error("Unable to rollback transaction", exc);
         }
     }
-
+    
     /**
      * Get the hash index for a SHA-256 hash
-     *
+     * 
      * @param       hash                SHA-256 hash
      * @return                          Hash index
      */
     private long getHashIndex(Sha256Hash hash) {
         byte[] bytes = hash.getBytes();
-        return (((long)bytes[24]&0xffL)<<56) | (((long)bytes[25]&0xffL)<<48) |
+        return (((long)bytes[24]&0xffL)<<56) | (((long)bytes[25]&0xffL)<<48) | 
                         (((long)bytes[26]&0xffL)<<40) | (((long)bytes[27]&0xffl)<<32) |
                         (((long)bytes[28]&0xffL)<<24) | (((long)bytes[29]&0xffL)<<16) |
                         (((long)bytes[30]&0xffL)<<8)  | ((long)bytes[31]&0xffL);
     }
-
+    
     /**
      * Get the serialized matching transactions
-     *
+     * 
      * @param       matches             Matches transactions
      * @return                          Serialized byte array or null if no matches
      */
@@ -274,10 +270,10 @@ public class WalletSql extends Wallet {
         }
         return bytes;
     }
-
+    
     /**
      * Get the matching transaction from the serialized byte array
-     *
+     * 
      * @param       bytes               Serialized byte stream
      * @return                          List of matching transactions or null if there are no matches
      */
@@ -297,7 +293,7 @@ public class WalletSql extends Wallet {
      * @return                          TRUE if the table exists
      * @throws      WalletException     Unable to access the database server
      */
-    private boolean tableExists(String table) throws WalletException {
+    protected boolean tableExists(String table) throws WalletException {
         boolean tableExists;
         Connection conn = getConnection();
         try (Statement s = conn.createStatement()) {
@@ -401,7 +397,7 @@ public class WalletSql extends Wallet {
      *
      * @throws      WalletException     Unable to get the initial values
      */
-    private void getSettings() throws WalletException {
+    protected void getSettings() throws WalletException {
         Connection conn = getConnection();
         ResultSet r;
         try {
@@ -913,7 +909,7 @@ public class WalletSql extends Wallet {
             s.setBoolean(11, receiveTx.isCoinBase());
             s.executeUpdate();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to store receive transaction output\n  Tx %s[%d]",
+            log.error(String.format("Unable to store receive transaction output\n  Tx %s[%d]", 
                                     receiveTx.getTxHash(), receiveTx.getTxIndex()), exc);
             throw new WalletException("Unable to store receive transaction output");
         }
@@ -938,7 +934,7 @@ public class WalletSql extends Wallet {
             s.setShort(4, (short)txIndex);
             s.executeUpdate();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]",
+            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]", 
                                     txHash, txIndex), exc);
             throw new WalletException("Unable to update receive transaction outputs");
         }
@@ -963,7 +959,7 @@ public class WalletSql extends Wallet {
             s.setShort(4, (short)txIndex);
             s.executeUpdate();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]",
+            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]", 
                                     txHash, txIndex), exc);
             throw new WalletException("Unable to update receive transaction outputs");
         }
@@ -988,7 +984,7 @@ public class WalletSql extends Wallet {
             s.setShort(4, (short)txIndex);
             s.executeUpdate();
         } catch (SQLException exc) {
-            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]",
+            log.error(String.format("Unable to update receive transaction output\n  Tx %s[%d]", 
                                     txHash, txIndex), exc);
             throw new WalletException("Unable to update receive transaction outputs");
         }
@@ -1078,7 +1074,7 @@ public class WalletSql extends Wallet {
             throw new WalletException("Unable to store send transaction");
         }
     }
-
+    
     /**
      * Updates the delete status for a send transaction
      *
@@ -1231,7 +1227,7 @@ public class WalletSql extends Wallet {
     /**
      * Deletes all transactions later than the rescan time.  Transactions that are not
      * in a block will not be deleted.
-     *
+     * 
      * @param       rescanTime              Rescan time in seconds
      * @throws      WalletException         Unable to delete transactions
      */

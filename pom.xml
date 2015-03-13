@@ -154,5 +154,11 @@ sending coins as well as signing and verifying messages.
             <version>${BitcoinCore.version}</version>
             <type>jar</type>
         </dependency>
+        <dependency>
+            <groupId>org.satochip</groupId>
+            <artifactId>SatoChipClient</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <type>jar</type>
+        </dependency>
     </dependencies>
 </project>

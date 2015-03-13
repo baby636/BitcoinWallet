@@ -15,15 +15,17 @@
  */
 package org.ScripterRon.BitcoinWallet;
 
-import org.ScripterRon.BitcoinCore.ECKey;
-import org.ScripterRon.BitcoinCore.ECException;
-
-import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.Toolkit;
+import java.awt.event.*;
+import javax.swing.*;
+import org.satochip.satochipclient.CardConnector;
+import org.ScripterRon.BitcoinCore.ECException;
+import org.ScripterRon.BitcoinCore.ECKey;
+import org.ScripterRon.BitcoinCore.ECKeyHw;
+import static org.ScripterRon.BitcoinWallet.Main.log;
 
 /**
  * SignDialog will sign a message using a key contained in the wallet.  The signature can then be copied to the
@@ -144,6 +146,8 @@ public class SignDialog extends JDialog implements ActionListener {
                     } else {
                         int index = nameField.getSelectedIndex();
                         ECKey key = Parameters.keys.get(index);
+                        log.info("Signing message with key:"+CardConnector.toString(key.getPubKey())
+                                +" keypath:"+CardConnector.toString(((ECKeyHw)key).getKeypath()) );//debug
                         String signature = key.signMessage(message);
                         signatureField.setText(signature);
                     }
@@ -160,6 +164,7 @@ public class SignDialog extends JDialog implements ActionListener {
                     break;
             }
         } catch (ECException exc) {
+            log.error("ECException: "+exc.getMessage()); //debug
             Main.logException("Unable to sign message", exc);
         } catch (Exception exc) {
             Main.logException("Exception while processing action event", exc);
