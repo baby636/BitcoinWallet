@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 //import java.util.Arrays;
 import java.util.List;
 //import java.util.logging.Level;
@@ -81,7 +82,7 @@ public class WalletSqlHw extends WalletSql{
         // last main address
         currentPath= new ArrayList<>(1);
         currentPath.add(0x80000000); // start from 0x80000000 then increment for each new key
-        
+                
     }
     
      /**
@@ -236,32 +237,28 @@ public class WalletSqlHw extends WalletSql{
         return currentPath;
     }
     
-    public void hwWalletSetup(String strpin, String strublk) throws WalletException, CardConnectorException{
+    public void hwWalletSetup(byte[] bytepin, byte[] bytepuk) throws WalletException, CardConnectorException{
         
-        try {
-            // setup (done only once)
-            byte pin_tries_0= 0x10;
-            byte ublk_tries_0= 0x10;
-            byte[] pin= strpin.getBytes("UTF-8");
-            byte[] ublk= strublk.getBytes("UTF-8");
-            
-            log.info("PIN: "+CardConnector.toString(pin)+" PUK: "+CardConnector.toString(ublk));
-            
-            short secmemsize= 0x1000; 
-            short memsize= 0x1000;
-            
-            byte create_object_ACL= 0x01;
-            byte create_key_ACL= 0x01;
-            byte create_pin_ACL= 0x01;
-            
-            cardConnector.cardSetup(
-                    pin_tries_0, ublk_tries_0, pin, ublk,
-                    pin_tries_0, ublk_tries_0, pin, ublk,
-                    secmemsize, memsize,
-                    create_object_ACL, create_key_ACL, create_pin_ACL);
-        } catch (UnsupportedEncodingException ex) {
-            throw new WalletException("Unable to convert pin or ublk to a byte array", ex);
-        }
+        //log.info("PIN: "+CardConnector.toString(pin)+" PUK: "+CardConnector.toString(ublk));
+
+        // setup (done only once)
+        byte pin_tries_0= 0x10;
+        byte ublk_tries_0= 0x10;
+        
+        short secmemsize= 0x1000; 
+        short memsize= 0x1000;
+
+        byte create_object_ACL= 0x01;
+        byte create_key_ACL= 0x01;
+        byte create_pin_ACL= 0x01;
+
+        cardConnector.cardSetup(
+                pin_tries_0, ublk_tries_0, bytepin, bytepuk,
+                pin_tries_0, ublk_tries_0, bytepin, bytepuk,
+                secmemsize, memsize,
+                create_object_ACL, create_key_ACL, create_pin_ACL);
+        Arrays.fill(bytepin, (byte) 0);
+        Arrays.fill(bytepuk, (byte) 0);
     }
     
     public boolean hwWalletSetupDone(){
@@ -275,25 +272,15 @@ public class WalletSqlHw extends WalletSql{
         }
     }
     
-    public boolean hwWalletVerifyPIN(byte pin_nbr, String strpin) throws WalletException, CardConnectorException{
-        try {
-            byte[] pin= strpin.getBytes("UTF-8");
-            cardConnector.cardVerifyPIN(pin_nbr, pin);	
-            return (cardConnector.getLastSW12()==0x9000);
-        } catch (UnsupportedEncodingException ex) {
-            throw new WalletException("Unable to convert PIN to a byte array", ex);
-        }
+    public boolean hwWalletVerifyPIN(byte pin_nbr, byte[] bytepin) throws WalletException, CardConnectorException{
+        cardConnector.cardVerifyPIN(pin_nbr, bytepin);
+        Arrays.fill(bytepin, (byte) 0);
+        return (cardConnector.getLastSW12()==0x9000);
     }
     
-    public boolean hwWalletChangePIN(byte pin_nbr, String old_strpin, String new_strpin) throws WalletException, CardConnectorException{
-        try {
-            byte[] old_pin= old_strpin.getBytes("UTF-8");
-            byte[] new_pin= new_strpin.getBytes("UTF-8");
-            cardConnector.cardChangePIN(pin_nbr, old_pin, new_pin);
+    public boolean hwWalletChangePIN(byte pin_nbr, byte[] old_bytepin, byte[] new_bytepin) throws WalletException, CardConnectorException{
+            cardConnector.cardChangePIN(pin_nbr, old_bytepin, new_bytepin);
             return (cardConnector.getLastSW12()==0x9000);
-        } catch (UnsupportedEncodingException ex) {
-            throw new WalletException("Unable to convert old PIN or new PIN to a byte array", ex);
-        }
     }
     
     public boolean hwWalletIsSeeded() {
@@ -306,18 +293,31 @@ public class WalletSqlHw extends WalletSql{
             return false;
         }
     }
-    public boolean hwWalletImportSeed(String strseed) throws WalletException, ECException{
+    
+//    public boolean hwWalletImportSeed(String strseed) throws WalletException, ECException{
+//        try {
+//            byte[] seed= strseed.getBytes("UTF-8");
+//            byte[] keyACL={0x00,0x01,0x00,0x01,0x00,0x01}; 
+//            byte[] k= ECKeyHw.importBip32Seed(keyACL, seed);
+//            log.info("recovered authentikey: "+CardConnector.toString(k));
+//            return k!=null;
+//        } catch (UnsupportedEncodingException ex) {
+//            throw new WalletException("Unable to convert seed to a byte array", ex);
+//        } catch (CardConnectorException ex) {
+//            throw new WalletException("Unable to recover public authentikey during seed import: ins:"+ex.getIns()+" sw12:"+ex.getSW12(), ex);
+//        }
+//    }
+    
+    public boolean hwWalletImportSeed(byte[] byteseed) throws WalletException, ECException{
         try {
-            byte[] seed= strseed.getBytes("UTF-8");
             byte[] keyACL={0x00,0x01,0x00,0x01,0x00,0x01}; 
-            byte[] k= ECKeyHw.importBip32Seed(keyACL, seed);
+            byte[] k= ECKeyHw.importBip32Seed(keyACL, byteseed);
+            Arrays.fill(byteseed, (byte) 0);
             log.info("recovered authentikey: "+CardConnector.toString(k));
             return k!=null;
-        } catch (UnsupportedEncodingException ex) {
-            throw new WalletException("Unable to convert seed to a byte array", ex);
         } catch (CardConnectorException ex) {
             throw new WalletException("Unable to recover public authentikey during seed import: ins:"+ex.getIns()+" sw12:"+ex.getSW12(), ex);
         }
     }
-        
+
 }

@@ -15,12 +15,6 @@
  */
 package org.ScripterRon.BitcoinWallet;
 
-import org.ScripterRon.BitcoinCore.ECKey;
-import org.ScripterRon.BitcoinCore.ECException;
-import org.ScripterRon.BitcoinCore.BloomFilter;
-import org.ScripterRon.BitcoinCore.ECKeyHw;
-import org.ScripterRon.BitcoinCore.NetParams;
-import org.ScripterRon.BitcoinCore.PeerAddress;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -32,12 +26,22 @@ import java.io.RandomAccessFile;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileLock;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.LogManager;
 import javax.swing.*;
+import org.ScripterRon.BitcoinCore.BloomFilter;
+import org.ScripterRon.BitcoinCore.ECException;
+import org.ScripterRon.BitcoinCore.ECKey;
+import org.ScripterRon.BitcoinCore.ECKeyHw;
+import org.ScripterRon.BitcoinCore.NetParams;
+import org.ScripterRon.BitcoinCore.PeerAddress;
 import org.satochip.satochipclient.CardConnector;
 import org.satochip.satochipclient.CardConnectorException;
 import org.satochip.satochipclient.JCconstants;
@@ -247,14 +251,6 @@ public class Main {
     private static void startup() {
         try {
             //
-            // Get the wallet passphrase if it is not specified in the application properties
-            //
-//            if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0) {
-//                Parameters.passPhrase = JOptionPane.showInputDialog("Enter the wallet passphrase");
-//                if (Parameters.passPhrase == null || Parameters.passPhrase.length() == 0)
-//                    System.exit(0);
-//            }
-            //
             // Create the wallet
             //
             Parameters.wallet = new WalletSqlHw(dataPath);
@@ -264,27 +260,28 @@ public class Main {
             //
             if(!((WalletSqlHw)Parameters.wallet).hwWalletSetupDone()){
                 log.info("HwWallet not initialized");
-                String strpin = JOptionPane.showInputDialog("Setup - Enter the PIN code");
-                String strublk = JOptionPane.showInputDialog("Setup - Enter the PUK code");
-                if (strpin == null || strpin.length() == 0 || strublk == null || strublk.length() == 0)
+                byte[] bytepin= createPasswordInputDialog("input", "Setup - Enter the PIN code");
+                byte[] bytepuk= createPasswordInputDialog("input", "Setup - Enter the PUK code");
+                if (bytepin == null || bytepin.length == 0 || bytepuk == null || bytepuk.length == 0)
                     System.exit(0);
-                ((WalletSqlHw)Parameters.wallet).hwWalletSetup(strpin, strublk);
+                ((WalletSqlHw)Parameters.wallet).hwWalletSetup(bytepin, bytepuk);
                 log.info("HwWallet initialized!");
             }
-            String strpin = JOptionPane.showInputDialog("Login - Enter the PIN code");
-            if (strpin == null || strpin.length() == 0)
+            byte[] bytepin= createPasswordInputDialog("input", "Login - Enter the PIN code");
+            if (bytepin == null || bytepin.length == 0)
                 System.exit(0);
-            ((WalletSqlHw)Parameters.wallet).hwWalletVerifyPIN((byte)0x00, strpin);
-            log.info("HwWallet verify PIN");
+            ((WalletSqlHw)Parameters.wallet).hwWalletVerifyPIN((byte)0x00, bytepin);
+            log.info("HwWallet verify PIN OK");
             //
             // recover authentikey and set the BIP32 seeed if necessary
             //
             if (!((WalletSqlHw)Parameters.wallet).hwWalletIsSeeded()){
                 log.info("HwWallet seed not initialized");
-                String strseed= JOptionPane.showInputDialog("Enter the BIP32 seed");
-                if (strseed == null || strseed.length() == 0)
+                byte[] byteseed= createPasswordInputDialog("input", "Enter the BIP32 seed");
+                if (byteseed == null || byteseed.length == 0)
                     System.exit(0);
-                ((WalletSqlHw)Parameters.wallet).hwWalletImportSeed(strseed);
+                ((WalletSqlHw)Parameters.wallet).hwWalletImportSeed(byteseed);
+                
                 log.info("HwWallet seed initialized!");
             }
             log.info("HwWallet is seeded");
@@ -663,4 +660,32 @@ public class Main {
             outString.append("\n");
         log.info(outString.toString());
     }
+    
+    public static byte[] createPasswordInputDialog(String title, String msg){
+        JPanel panel = new JPanel();
+        JLabel label = new JLabel(msg);
+        JPasswordField pass= new JPasswordField(32);
+        panel.add(label);
+        panel.add(pass);
+        
+        String[] options = new String[]{"OK", "Cancel"};
+        int option = JOptionPane.showOptionDialog(null, panel, title,
+                                 JOptionPane.NO_OPTION, JOptionPane.PLAIN_MESSAGE,
+                                 null, options, options[1]);
+        if(option == 0){ // pressing OK button
+            char[] charpass= pass.getPassword(); 
+            
+            // securely convert from char[] to byte[] without string intermediate
+            // http://stackoverflow.com/questions/5513144/converting-char-to-byte
+            CharBuffer charBuffer = CharBuffer.wrap(charpass);
+            ByteBuffer byteBuffer = Charset.forName("UTF-8").encode(charBuffer);
+            byte[] bytepass = Arrays.copyOfRange(byteBuffer.array(),
+                    byteBuffer.position(), byteBuffer.limit());
+            Arrays.fill(charBuffer.array(), '\u0000'); // clear sensitive data
+            Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
+            return bytepass; 
+        }
+        return null;
+    }
+    
 }
