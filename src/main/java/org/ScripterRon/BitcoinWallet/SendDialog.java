@@ -248,7 +248,6 @@ public class SendDialog extends JDialog implements ActionListener {
         //
         // Build the new transaction
         //
-        String debug="debugdata:";
         Transaction tx = null;
         while (true) {
             BigInteger totalAmount = sendAmount.add(sendFee);
@@ -256,13 +255,15 @@ public class SendDialog extends JDialog implements ActionListener {
             for (SignedInput input : inputList) {
                 inputs.add(input);
                 totalAmount = totalAmount.subtract(input.getValue());
-                debug+="\n input nbr:"+inputs.size()
-                        +"\n input key:"+CardConnector.toString(input.getKey().getPubKey())
-                        +"\n input amount:"+input.getValue().toString()
-                        +"\n script:"+CardConnector.toString(input.getScriptBytes())
-                        +"\n outpoint txhash:"+CardConnector.toString(input.getOutPoint().getHash().getBytes())
-                        +"\n outpoint index:"+input.getOutPoint().getIndex()
-                        +"\n outpoint rawbytes:"+CardConnector.toString(input.getOutPoint().getBytes());
+                log.info("Input created:"
+                            +"\n\t input nbr:"+inputs.size()
+                            +"\n\t input key:"+CardConnector.toString(input.getKey().getPubKey())
+                            +"\n\t input amount:"+input.getValue().toString()
+                            +"\n\t script:"+CardConnector.toString(input.getScriptBytes())
+                            +"\n\t outpoint txhash:"+CardConnector.toString(input.getOutPoint().getHash().getBytes())
+                            +"\n\t outpoint index:"+input.getOutPoint().getIndex()
+                            +"\n\t outpoint rawbytes:"+CardConnector.toString(input.getOutPoint().getBytes())
+                        );
                 if (totalAmount.signum() <= 0)
                     break;
             }
@@ -277,9 +278,9 @@ public class SendDialog extends JDialog implements ActionListener {
             BigInteger change = totalAmount.negate();
             if (change.compareTo(Parameters.DUST_TRANSACTION) > 0)
                 outputs.add(new TransactionOutput(1, change, Parameters.changeKey.toAddress()));
-            debug+="\n output(0):"+CardConnector.toString(outputs.get(0).getBytes())
-                +"\n output amount:"+outputs.get(0).getValue().toString();
-            
+            log.info("Output created:"
+                        +"\n\t output(0):"+CardConnector.toString(outputs.get(0).getBytes())
+                        +"\n\t output amount:"+outputs.get(0).getValue().toString());
             //
             // Create the new transaction using the supplied inputs and outputs
             //
@@ -288,9 +289,10 @@ public class SendDialog extends JDialog implements ActionListener {
             } catch (ECException | ScriptException | VerificationException exc) {
                 throw new WalletException("Unable to create transaction", exc);
             }
-            log.info("Transaction created:\n rawtx:"+CardConnector.toString(tx.getBytes())
-                            +"\n hash:"+tx.getHash().toString()
-                            +"\n string"+tx.toString()+debug);
+            log.info("Transaction created:"
+                    +"\n\t rawtx:"+CardConnector.toString(tx.getBytes())
+                    +"\n\t hash:"+tx.getHash().toString()
+                    +"\n\t string"+tx.toString());
             //
             // The minimum fee increases for every 1000 bytes of serialized transaction data.  We
             // will need to increase the send fee if it doesn't cover the minimum fee.

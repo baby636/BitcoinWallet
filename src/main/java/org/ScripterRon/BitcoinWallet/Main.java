@@ -280,8 +280,7 @@ public class Main {
                 byte[] byteseed= createPasswordInputDialog("input", "Enter the BIP32 seed");
                 if (byteseed == null || byteseed.length == 0)
                     System.exit(0);
-                ((WalletSqlHw)Parameters.wallet).hwWalletImportSeed(byteseed);
-                
+                ((WalletSqlHw)Parameters.wallet).hwWalletImportSeed(byteseed);                
                 log.info("HwWallet seed initialized!");
             }
             log.info("HwWallet is seeded");
@@ -671,7 +670,7 @@ public class Main {
         String[] options = new String[]{"OK", "Cancel"};
         int option = JOptionPane.showOptionDialog(null, panel, title,
                                  JOptionPane.NO_OPTION, JOptionPane.PLAIN_MESSAGE,
-                                 null, options, options[1]);
+                                 null, options, options[0]);
         if(option == 0){ // pressing OK button
             char[] charpass= pass.getPassword(); 
             

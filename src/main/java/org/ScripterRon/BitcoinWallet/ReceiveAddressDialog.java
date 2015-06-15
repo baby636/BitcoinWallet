@@ -148,7 +148,7 @@ public class ReceiveAddressDialog extends JDialog implements ActionListener {
                 setVisible(false);
                 dispose();
             } else if (action.equals("new")) {
-                List<Integer> list= WalletSqlHw.incrementCurrentPath();
+                List<Integer> list= ((WalletSqlHw)Parameters.wallet).incrementCurrentPath();
                 ECKey key= new ECKeyHw(list);
                 editKey(key, -1);
                 log.info("Created new key with pubkey:"+CardConnector.toString(key.getPubKey()));

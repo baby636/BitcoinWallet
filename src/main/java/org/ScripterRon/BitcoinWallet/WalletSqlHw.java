@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 //import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 //import java.util.logging.Level;
 //import java.util.logging.Logger;
 import javax.smartcardio.CardException;
@@ -92,7 +94,7 @@ public class WalletSqlHw extends WalletSql{
     public void close() {
         super.close();
         try {
-            cardConnector.disconect();
+            cardConnector.disconnect();
         } catch (CardException ex) {
             log.error("Error during card disconnect", ex);
         }
@@ -195,14 +197,15 @@ public class WalletSqlHw extends WalletSql{
                 boolean isChange= r.getBoolean(4);
                 
                 ECKey key;
-                if (keypath.length==1){
+                if (keypath.length==1){ // regular key
                     key= new ECKeyHw(keypath[0], pubKey);
                 }else{
-                    List<Integer> bip32path= new ArrayList<>(keypath.length/4);
-                    for (int i=0; i<keypath.length; i+=4){
-                        long val= ((keypath[i]&0xff)<<24) ^ ((keypath[i+1]&0xff)<<16) ^ ((keypath[i+2]&0xff)<<8) ^ (keypath[i+3]&0xff);
-                        bip32path.add((int)val);
-                    }
+                    List<Integer> bip32path= byteArrayToIntegerList(keypath);
+//                    List<Integer> bip32path= new ArrayList<>(keypath.length/4);
+//                    for (int i=0; i<keypath.length; i+=4){
+//                        long val= ((keypath[i]&0xff)<<24) ^ ((keypath[i+1]&0xff)<<16) ^ ((keypath[i+2]&0xff)<<8) ^ (keypath[i+3]&0xff);
+//                        bip32path.add((int)val);
+//                    }
                     if (bip32path.size()>1)
                         throw new KeyException("Bip32path longer than expected (should be 1)...");
                     if (!isChange && Integer.toUnsignedLong(bip32path.get(0))>Integer.toUnsignedLong(currentPath.get(0)))
@@ -220,20 +223,30 @@ public class WalletSqlHw extends WalletSql{
                         +" keypath:"+CardConnector.toString(((ECKeyHw)key).getKeypath()));
             
             }
+            // get the number of key stored on the chip
+            byte[] keypath= cardConnector.cardReadObject(0x11110000);
+            log.info("Recovered current keypath from chip:"+CardConnector.toString(keypath));
+            
         } catch (SQLException exc) {
             log.error("Unable to get key list", exc);
             throw new WalletException("Unable to get key list");
+        } catch (CardConnectorException ex) {
+            log.error("Unable to get current keypath from chip");
         }
         return keyList;
     }
     
-    public static List<Integer> incrementCurrentPath(){
+    public List<Integer> incrementCurrentPath()throws CardConnectorException{
         log.info("increment path (before): size:"+currentPath.size()+" list[0]:"+currentPath.get(0)+" "+Integer.toHexString(currentPath.get(0)));
         long current= Integer.toUnsignedLong(currentPath.get(0));
         current++;
         currentPath.set(0,(int)current);
         log.info("increment path (after): size:"+currentPath.size()+" list[0]:"+ currentPath.get(0)+" "+Integer.toHexString(currentPath.get(0)));
-        //currentPath.set(0, currentPath.get(0)+1); // sign mismatch?
+        
+        // update object on card
+        byte[] bytepath= integerListToByteArray(currentPath);
+        cardConnector.cardWriteObject(0x11110000, bytepath);
+        
         return currentPath;
     }
     
@@ -314,10 +327,40 @@ public class WalletSqlHw extends WalletSql{
             byte[] k= ECKeyHw.importBip32Seed(keyACL, byteseed);
             Arrays.fill(byteseed, (byte) 0);
             log.info("recovered authentikey: "+CardConnector.toString(k));
+            
+            // create an object storing currentPath in chip
+            byte[] bytepath= integerListToByteArray(currentPath);
+            cardConnector.cardCreateObject(0x11110000, bytepath.length, keyACL);
+            cardConnector.cardWriteObject(0x11110000, bytepath);
+            
             return k!=null;
         } catch (CardConnectorException ex) {
             throw new WalletException("Unable to recover public authentikey during seed import: ins:"+ex.getIns()+" sw12:"+ex.getSW12(), ex);
         }
+    }
+    
+    public static byte[] integerListToByteArray(List<Integer> list){
+        byte[] bytearray= new byte[4*list.size()];
+        for (int i=0; i<list.size(); i++){
+                long val= Integer.toUnsignedLong(list.get(i));
+                bytearray[4*i]=  (byte)((val>>24) & 0xff);
+                bytearray[4*i+1]=  (byte)((val>>16) & 0xff);
+                bytearray[4*i+2]=  (byte)((val>>8) & 0xff);
+                bytearray[4*i+3]=  (byte)(val & 0xff);
+        }
+        return bytearray;
+    }
+    public static List<Integer> byteArrayToIntegerList(byte[] bytearray){
+        
+        List<Integer> intlist= new ArrayList<>(bytearray.length/4);
+        for (int i=0; i<bytearray.length; i+=4){
+            long val= ((bytearray[i]&0xff)<<24) 
+                    ^ ((bytearray[i+1]&0xff)<<16) 
+                    ^ ((bytearray[i+2]&0xff)<<8) 
+                    ^ (bytearray[i+3]&0xff);
+            intlist.add((int)val);
+        }
+        return intlist;
     }
 
 }
