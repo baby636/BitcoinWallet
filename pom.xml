@@ -10,7 +10,7 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <slf4j.version>1.7.7</slf4j.version>
-        <h2.version>1.4.185</h2.version>
+        <h2.version>1.4.200</h2.version>
         <BitcoinCore.version>2.1.1</BitcoinCore.version>
     </properties>
     <name>Java Bitcoin Wallet</name>
